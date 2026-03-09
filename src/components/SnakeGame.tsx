@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trophy, Play, RotateCcw, Pause, Keyboard, Zap } from 'lucide-react';
+import { Trophy, Play, RotateCcw, Pause, Keyboard, Zap, Cloud, Sun, CloudRain, MapPin, Wind, Droplets } from 'lucide-react';
 import { Point, Direction, GameStatus, GameState } from '../types';
+import { WeatherBackground } from './WeatherBackground';
 
 const GRID_SIZE = 20;
 const INITIAL_SPEED = 150;
@@ -10,14 +11,22 @@ const SPEED_INCREMENT = 2;
 
 export const SnakeGame: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [gameState, setGameState] = useState<GameState>({
-    snake: [{ x: 10, y: 10 }, { x: 10, y: 11 }, { x: 10, y: 12 }],
-    food: { x: 5, y: 5 },
-    direction: 'UP',
-    score: 0,
-    highScore: parseInt(localStorage.getItem('snakeHighScore') || '0'),
-    status: 'START',
-    speed: INITIAL_SPEED,
+  const [gameState, setGameState] = useState<GameState>(() => {
+    let highScore = 0;
+    try {
+      highScore = parseInt(localStorage.getItem('snakeHighScore') || '0');
+    } catch (e) {
+      console.warn('localStorage not available');
+    }
+    return {
+      snake: [{ x: 10, y: 10 }, { x: 10, y: 11 }, { x: 10, y: 12 }],
+      food: { x: 5, y: 5 },
+      direction: 'UP',
+      score: 0,
+      highScore,
+      status: 'START',
+      speed: INITIAL_SPEED,
+    };
   });
 
   const directionRef = useRef<Direction>('UP');
@@ -65,7 +74,7 @@ export const SnakeGame: React.FC = () => {
       if (lastProcessedDirectionRef.current !== 'RIGHT') directionRef.current = 'LEFT';
     } else if (key === 'ArrowRight' || key === 'd' || key === 'D') {
       if (lastProcessedDirectionRef.current !== 'LEFT') directionRef.current = 'RIGHT';
-    } else if (key === 'r' || key === 'R') {
+    } else if (key === 'r' || key === 'R' || key === 'Enter') {
       if (gameState.status === 'GAMEOVER' || gameState.status === 'START') {
         resetGame();
       }
@@ -114,9 +123,11 @@ export const SnakeGame: React.FC = () => {
 
       // Self collision
       if (prev.snake.some(segment => segment.x === newHead.x && segment.y === newHead.y)) {
-        if (prev.score > prev.highScore) {
-          localStorage.setItem('snakeHighScore', prev.score.toString());
-        }
+        try {
+          if (prev.score > prev.highScore) {
+            localStorage.setItem('snakeHighScore', prev.score.toString());
+          }
+        } catch (e) {}
         return { ...prev, status: 'GAMEOVER', highScore: Math.max(prev.score, prev.highScore) };
       }
 
@@ -216,7 +227,11 @@ export const SnakeGame: React.FC = () => {
       const radius = isHead ? 6 : 4;
 
       ctx.beginPath();
-      ctx.roundRect(x, y, size, size, radius);
+      if (ctx.roundRect) {
+        ctx.roundRect(x, y, size, size, radius);
+      } else {
+        ctx.rect(x, y, size, size);
+      }
       ctx.fill();
       
       ctx.shadowBlur = 0;
@@ -225,41 +240,63 @@ export const SnakeGame: React.FC = () => {
   }, [gameState]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-[#050505]">
-      {/* HUD */}
-      <div className="w-full max-w-[500px] flex items-center justify-between mb-6 px-2">
-        <div className="flex flex-col">
-          <span className="text-[10px] uppercase tracking-widest text-white/40 font-mono">Current Score</span>
-          <span className="text-3xl font-bold font-mono text-[#00ff88]">{gameState.score.toString().padStart(4, '0')}</span>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] uppercase tracking-widest text-white/40 font-mono">System Speed</span>
-            <span className="text-xl font-bold font-mono text-[#00ffee]">
-              {Math.round((INITIAL_SPEED / gameState.speed) * 100)}%
-            </span>
+    <div className="relative flex flex-col items-center justify-center min-h-screen p-4 overflow-hidden">
+      <WeatherBackground />
+
+      {/* Stats Widget */}
+      <div className="relative z-10 w-full max-w-[800px] grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="glass-panel p-6 rounded-2xl flex flex-col justify-between"
+        >
+          <div className="flex justify-between items-start">
+            <div>
+              <span className="text-[#00ff41]/40 text-[10px] uppercase tracking-[0.3em] block mb-1">Active Session</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-5xl font-mono font-bold text-[#00ff41] drop-shadow-[0_0_8px_rgba(0,255,65,0.5)]">
+                  {gameState.score.toString().padStart(4, '0')}
+                </span>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-[#00ff41]/40 text-[10px] uppercase tracking-[0.3em] block mb-1">Personal Best</span>
+              <span className="text-2xl font-mono text-[#00ff41]/80">{gameState.highScore.toString().padStart(4, '0')}</span>
+            </div>
           </div>
-          <div className="w-px h-8 bg-white/10" />
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] uppercase tracking-widest text-white/40 font-mono flex items-center gap-1">
-              <Trophy size={10} /> High Score
-            </span>
-            <span className="text-xl font-bold font-mono text-white/80">{gameState.highScore.toString().padStart(4, '0')}</span>
+        </motion.div>
+
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="glass-panel p-6 rounded-2xl flex flex-col justify-center"
+        >
+          <div className="flex flex-col">
+            <span className="text-[10px] text-[#00ff41]/30 uppercase tracking-[0.3em] mb-2">System Load</span>
+            <div className="flex items-center gap-4">
+              <div className="flex-1 h-1.5 bg-[#00ff41]/5 rounded-full overflow-hidden border border-[#00ff41]/10">
+                <motion.div 
+                  className="h-full bg-[#00ff41] shadow-[0_0_10px_rgba(0,255,65,0.8)]" 
+                  animate={{ width: `${Math.min(100, (INITIAL_SPEED / gameState.speed) * 50)}%` }}
+                />
+              </div>
+              <span className="text-[12px] font-mono text-[#00ff41]">{Math.round((INITIAL_SPEED / gameState.speed) * 100)}%</span>
+            </div>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* Game Container */}
-      <div className="relative group">
-        <div className="absolute -inset-1 bg-gradient-to-r from-[#00ff88] to-[#00ffee] rounded-xl blur opacity-20 group-hover:opacity-30 transition duration-1000"></div>
-        <div className="relative bg-[#0a0a0a] rounded-lg border border-white/10 overflow-hidden shadow-2xl">
-          <canvas
-            ref={canvasRef}
-            width={500}
-            height={500}
-            className="max-w-full h-auto block"
-          />
+      <div className="relative z-10">
+        <div className="glass-panel p-1 rounded-xl shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+          <div className="rounded-lg overflow-hidden border border-[#00ff41]/20">
+            <canvas
+              ref={canvasRef}
+              width={500}
+              height={500}
+              className="max-w-full h-auto block"
+            />
+          </div>
 
           {/* Overlays */}
           <AnimatePresence>
@@ -268,36 +305,24 @@ export const SnakeGame: React.FC = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center"
+                className="absolute inset-1 bg-black/80 backdrop-blur-md rounded-lg flex flex-col items-center justify-center p-8 text-center"
               >
                 <motion.h1 
-                  initial={{ y: 20 }}
-                  animate={{ y: 0 }}
-                  className="text-5xl font-bold mb-2 tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-white/50"
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="text-6xl font-mono font-bold mb-2 tracking-tighter text-[#00ff41] drop-shadow-[0_0_15px_rgba(0,255,65,0.8)]"
                 >
-                  NEON SNAKE
+                  SNAKE.EXE
                 </motion.h1>
-                <p className="text-white/40 text-sm mb-8 font-mono tracking-wide uppercase">Professional Web Edition</p>
+                <p className="text-[#00ff41]/40 text-[10px] mb-12 font-mono tracking-[0.5em] uppercase">Terminal Interface v4.0</p>
                 
-                <div className="grid grid-cols-2 gap-4 mb-8 w-full max-w-xs">
-                  <div className="bg-white/5 border border-white/10 p-3 rounded-lg flex flex-col items-center">
-                    <Keyboard className="text-[#00ff88] mb-2" size={20} />
-                    <span className="text-[10px] text-white/40 uppercase">Arrows / WASD</span>
-                  </div>
-                  <div className="bg-white/5 border border-white/10 p-3 rounded-lg flex flex-col items-center">
-                    <Zap className="text-[#ff4e00] mb-2" size={20} />
-                    <span className="text-[10px] text-white/40 uppercase">Speed Scaling</span>
-                  </div>
-                </div>
-
                 <button
                   onClick={resetGame}
-                  className="group relative px-8 py-3 bg-white text-black font-bold rounded-full overflow-hidden transition-all hover:scale-105 active:scale-95"
+                  className="group relative px-12 py-4 bg-[#00ff41] text-black font-bold rounded-sm overflow-hidden transition-all hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(0,255,65,0.4)]"
                 >
-                  <span className="relative z-10 flex items-center gap-2">
-                    <Play size={18} fill="currentColor" /> START MISSION
-                  </span>
+                  INITIALIZE_SYSTEM
                 </button>
+                <p className="mt-6 text-[#00ff41]/20 text-[9px] uppercase tracking-[0.4em]">Press Enter to Execute</p>
               </motion.div>
             )}
 
@@ -306,61 +331,65 @@ export const SnakeGame: React.FC = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center"
+                className="absolute inset-1 bg-black/40 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center"
               >
-                <h2 className="text-4xl font-bold mb-6 tracking-widest text-white">PAUSED</h2>
-                <button
-                  onClick={() => setGameState(prev => ({ ...prev, status: 'PLAYING' }))}
-                  className="p-4 bg-[#00ff88] text-black rounded-full hover:scale-110 transition-transform"
-                >
-                  <Play size={32} fill="currentColor" />
-                </button>
-                <p className="mt-4 text-white/40 font-mono text-xs uppercase tracking-widest">Press Space to Resume</p>
+                <div className="glass-panel p-8 rounded-full border-[#00ff41]/40">
+                  <button
+                    onClick={() => setGameState(prev => ({ ...prev, status: 'PLAYING' }))}
+                    className="text-[#00ff41] hover:scale-110 transition-transform drop-shadow-[0_0_10px_rgba(0,255,65,0.8)]"
+                  >
+                    <Play size={48} fill="currentColor" />
+                  </button>
+                </div>
+                <p className="mt-6 text-[#00ff41]/40 font-mono text-[10px] uppercase tracking-[0.5em]">System_Halted</p>
               </motion.div>
             )}
 
             {gameState.status === 'GAMEOVER' && (
               <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-[#ff4e00]/10 backdrop-blur-md flex flex-col items-center justify-center p-8 border-4 border-[#ff4e00]/20"
+                className="absolute inset-1 bg-black/90 backdrop-blur-xl rounded-lg flex flex-col items-center justify-center p-8"
               >
-                <h2 className="text-6xl font-black mb-2 tracking-tighter text-[#ff4e00]">GAME OVER</h2>
-                <div className="h-px w-32 bg-[#ff4e00]/40 mb-6" />
-                
-                <div className="flex flex-col items-center mb-8">
-                  <span className="text-white/40 text-xs uppercase tracking-widest mb-1">Final Score</span>
-                  <span className="text-5xl font-mono font-bold text-white">{gameState.score}</span>
+                <div className="mb-8 text-center">
+                  <h2 className="text-5xl font-mono font-bold mb-2 tracking-tighter text-[#ff4141] drop-shadow-[0_0_15px_rgba(255,65,65,0.5)]">CRITICAL_FAILURE</h2>
+                  <div className="flex items-center justify-center gap-4 text-[#00ff41]/40 text-xs uppercase tracking-widest font-mono">
+                    <span>Score: {gameState.score}</span>
+                    <span>|</span>
+                    <span>Best: {gameState.highScore}</span>
+                  </div>
                 </div>
 
                 <button
                   onClick={resetGame}
-                  className="flex items-center gap-3 px-10 py-4 bg-white text-black font-black rounded-xl hover:bg-[#00ff88] hover:scale-105 transition-all shadow-xl"
+                  className="flex items-center gap-3 px-12 py-4 bg-[#00ff41] text-black font-bold rounded-sm hover:scale-105 transition-all shadow-[0_0_30px_rgba(0,255,65,0.3)]"
                 >
-                  <RotateCcw size={24} /> REBOOT SYSTEM
+                  REBOOT_KERNEL
                 </button>
+                <p className="mt-6 text-[#00ff41]/30 text-[9px] uppercase tracking-[0.4em]">Press Enter to Restart</p>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </div>
 
-      {/* Footer / Controls Info */}
-      <div className="mt-8 flex items-center gap-8 text-white/20 font-mono text-[10px] uppercase tracking-[0.2em]">
-        <div className="flex items-center gap-2">
-          <span className="px-1.5 py-0.5 border border-white/20 rounded">SPACE</span>
-          <span>Pause</span>
+      {/* Footer */}
+      <div className="relative z-10 mt-12 flex items-center gap-12 text-[#00ff41]/10 font-mono text-[9px] uppercase tracking-[0.5em]">
+        <div className="flex items-center gap-3">
+          <span className="w-1.5 h-1.5 bg-[#00ff41]/20 rotate-45" />
+          <span>WASD_NAV</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="px-1.5 py-0.5 border border-white/20 rounded">WASD</span>
-          <span>Move</span>
+        <div className="flex items-center gap-3">
+          <span className="w-1.5 h-1.5 bg-[#00ff41]/20 rotate-45" />
+          <span>SPACE_PAUSE</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="px-1.5 py-0.5 border border-white/20 rounded">R</span>
-          <span>Restart</span>
+        <div className="flex items-center gap-3">
+          <span className="w-1.5 h-1.5 bg-[#00ff41]/20 rotate-45" />
+          <span>ENTER_REBOOT</span>
         </div>
       </div>
     </div>
   );
+
 };
